@@ -351,5 +351,57 @@ cv::Mat rotateImage(
         }
     }
     return output;
+
+    
+cv::Mat blurImage(
+    const cv::Mat& image)
+{
+    validateImage(
+        image,
+        "blurImage()");
+
+    cv::Mat output;
+
+    cv::GaussianBlur(
+        image,
+        output,
+        cv::Size(5, 5),
+        0.0);
+
+    return output;
+}
+
+cv::Mat edgeDetect(
+    const cv::Mat& image)
+{
+    validateImage(
+        image,
+        "edgeDetect()");
+
+    cv::Mat gray;
+    cv::Mat edges;
+    cv::Mat output;
+
+    // Canny edge detection requires a grayscale input.
+    cv::cvtColor(
+        image,
+        gray,
+        cv::COLOR_BGR2GRAY);
+
+    cv::Canny(
+        gray,
+        edges,
+        100,
+        200);
+
+    // Preserve the three-channel BGR format used by the pipeline.
+    cv::cvtColor(
+        edges,
+        output,
+        cv::COLOR_GRAY2BGR);
+
+    return output;
+}
+
 }
 }
