@@ -1,4 +1,6 @@
-#pragma once
+
+#ifndef PHOTO_BOOTH_IMAGE_PROCESSING_HPP
+#define PHOTO_BOOTH_IMAGE_PROCESSING_HPP
 
 #include <opencv2/core.hpp>
 
@@ -23,11 +25,14 @@ cv::Mat rotateImage(
     const cv::Mat& image,
     double angle);
 
-// Week 15 additions
-cv::Mat grayscaleImage(
-    const cv::Mat& image);
-
+// Apply a 5 x 5 Gaussian blur.
 cv::Mat blurImage(
     const cv::Mat& image);
 
-}
+// Detect image edges using the Canny algorithm.
+cv::Mat edgeDetect(
+    const cv::Mat& image);
+
+} // namespace photo_booth
+
+#endif // PHOTO_BOOTH_IMAGE_PROCESSING_HPP
