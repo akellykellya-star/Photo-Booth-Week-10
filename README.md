@@ -1,57 +1,74 @@
 # Photo Booth
 
-`Photo Booth` is the starting C++20 project for the semester-long photo booth assignment in **IMGS.361 Image Processing**. The starter code provides camera acquisition, typed TOML configuration, a minimal live-preview example, and a closely related photo-booth application with an explicit image-processing pipeline for students to extend throughout the semester.
+`Photo Booth` is a C++20 project for IMGS.361 Image Processing. The application uses OpenCV to acquire live camera frames, apply image-processing operations, display the processed preview, and save captured images.
 
-The project intentionally separates reusable support code from application-specific behavior. Camera acquisition, configuration loading, and starter image-processing functions live in the `photo_booth` namespace; the applications contain their own control flow and runtime state.
+The project builds on the earlier semester work while keeping the existing application structure. Camera acquisition, configuration, image processing, and application control remain separate.
 
-## Starter applications
+## Applications
 
 The project builds three executables:
 
-- `live_preview` — minimal camera acquisition and display example
-- `photo_booth` — semester project baseline with an explicit processing pipeline
-- `capture_single_image` — diagnostic/example utility that saves one acquired frame
+- `live_preview` — displays the live camera feed.
+- `photo_booth` — runs the interactive image-processing pipeline.
+- `capture_single_image` — captures a single image for testing.
 
-### `live_preview`
+## Image-processing capabilities
 
-`apps/live_preview.cpp` intentionally has no `processFrame()` function. It acquires each camera frame, applies only display-oriented preview rotation/mirroring, and displays the result:
+The photo booth includes:
 
-```text
-camera -> display
-```
+- **Channel swapping:** swaps red and blue channel values. Configured through `config.toml`.
+- **Dynamic contrast:** adjusts the image's intensity range using low and high percentiles.
+- **Image inversion:** creates a photographic negative. This is an extra visual effect and is not counted as a substantive capability.
+- **Image quantization:** reduces the number of intensity levels in the image's color channels.
+- **Image rotation:** rotates the image by a selectable angle.
+- **Gaussian blur:** smooths image details using a 5 × 5 Gaussian kernel.
+- **Canny edge detection:** identifies image edges using grayscale conversion and Canny thresholds.
 
-This provides a simple reference showing that an explicit processing stage is not required merely to acquire and display camera imagery.
+The two additional Week 10 processing functions are Gaussian blur and Canny edge detection.
 
-### `photo_booth`
+## Keyboard controls
 
-`apps/photo_booth.cpp` inserts an explicit processing stage between acquisition and display:
+Click the preview window to ensure it has focus, then use the following keys.
 
-```text
-camera -> processFrame() -> display
-```
+| Key | Action |
+|---|---|
+| `C` | Toggle dynamic contrast |
+| `I` | Toggle image inversion |
+| `N` | Toggle quantization |
+| `[` | Decrease quantization levels |
+| `]` | Increase quantization levels |
+| `R` | Toggle rotation |
+| `,` | Decrease rotation angle by 5 degrees |
+| `.` | Increase rotation angle by 5 degrees |
+| `B` | Toggle Gaussian blur |
+| `E` | Toggle Canny edge detection |
+| `SPACE` | Save the currently processed frame |
+| `Q` or `Esc` | Quit |
 
-The starter pipeline demonstrates two different kinds of processing controls:
+Quantization levels are bounded between 2 and 256. Rotation is bounded between -180 and 180 degrees.
 
-- **Baseline operation:** `swapRedBlueChannels()` is controlled by `processing.channel_swap_enabled` in `config.toml` and, when enabled, is applied to every frame.
-- **Optional operation:** `invertImage()` is toggled interactively by pressing `i` while the program is running. Its state is independent of other optional operations that may be added later.
+## Processing pipeline
 
-These simple operations are intended to demonstrate architecture rather than serve as substantive course algorithms.
+The application processes each camera frame in this order:
 
-## Image representation convention
+1. Channel swapping, if enabled in the configuration.
+2. Dynamic contrast, if enabled.
+3. Inversion, if enabled.
+4. Gaussian blur, if enabled.
+5. Canny edge detection, if enabled.
+6. Quantization, if enabled.
+7. Rotation, if enabled.
 
-Successful `ImageCapture::read()` calls provide **8-bit, three-channel BGR images (`CV_8UC3`)**. This is the image representation contract for the Photo Booth processing pipeline.
+The operations can be combined. Since each enabled operation receives the previous operation's output, changing the enabled effects can change the final image.
 
-Even an operation that conceptually produces grayscale imagery should return a three-channel BGR image, with the grayscale value replicated in the B, G, and R channels. Maintaining one image representation throughout the pipeline simplifies composition of processing operations.
-
-OpenCV's property is named `CAP_PROP_CONVERT_RGB`, but normal decoded OpenCV color imagery uses BGR channel order. `ImageCapture` requests this conversion internally and verifies the returned frame type; it is not exposed as a TOML option.
+Canny edge detection converts the image to grayscale internally, detects edges, and converts the result back to three-channel BGR. This keeps it compatible with the existing image-processing pipeline.
 
 ## Project organization
 
 ```text
-imgs361-photo-booth/
+Photo-Booth-Week-10/
 ├── CMakeLists.txt
 ├── config.toml
-├── LICENSE
 ├── README.md
 ├── apps/
 │   ├── capture_single_image.cpp
@@ -62,226 +79,67 @@ imgs361-photo-booth/
 │       ├── AppConfig.hpp
 │       ├── ImageCapture.hpp
 │       └── ImageProcessing.hpp
-├── src/
-│   ├── AppConfig.cpp
-│   ├── ImageCapture.cpp
-│   └── ImageProcessing.cpp
-└── notes/
-    └── git_workflows
+└── src/
+    ├── AppConfig.cpp
+    ├── ImageCapture.cpp
+    └── ImageProcessing.cpp
 ```
 
-`ImageCapture` wraps OpenCV's `cv::VideoCapture`. `AppConfig` defines and loads the typed application configuration. `ImageProcessing` contains reusable processing functions used by the photo-booth pipeline.
-
-## Student-facing files
-
-Most image-processing work during the semester should be concentrated in a small part of the project:
-
-```text
-apps/photo_booth.cpp
-include/photo_booth/ImageProcessing.hpp
-src/ImageProcessing.cpp
-config.toml
-```
-
-When a new processing operation needs a persistent configuration value, students will also modify:
-
-```text
-include/photo_booth/AppConfig.hpp
-src/AppConfig.cpp
-```
-
-`ImageCapture` and most of the top-level CMake configuration can be treated as supplied infrastructure unless a project extension specifically requires changes there. Ordinary processing operations added to the existing `ImageProcessing.cpp` do **not** require a CMake change.
+`ImageProcessing.cpp` contains reusable image-processing functions. `photo_booth.cpp` controls the processing order, keyboard input, preview, and image capture.
 
 ## Requirements
 
 - CMake 3.30 or later
-- a C++20 compiler
-- OpenCV 4.x or 5.x with `core`, `videoio`, `highgui`, `imgcodecs`, and `imgproc`
-- Boost with the `program_options` component
+- A C++20 compiler
+- OpenCV with the required `core`, `videoio`, `highgui`, `imgcodecs`, and `imgproc` modules
+- Boost with `program_options`
 - Eigen3
-- toml++ 3.4.0, downloaded automatically by CMake using `FetchContent`
+- toml++ 3.4.0
 
-Boost.Program_options and Eigen are intentionally pre-provisioned for student applications even though the starter applications do not yet use them directly. This allows students to use either library later in the semester without changing the project build environment.
+The project's CMake configuration downloads toml++ using `FetchContent`.
 
 ## Build
 
-From the project root:
+Run these commands from the project root:
 
-```sh
+```bash
 cmake -S . -B build
 cmake --build build
 ```
 
-Compiled executables are placed in `build/bin`:
+## Run
 
-```text
-build/bin/
-├── capture_single_image
-├── live_preview
-└── photo_booth
-```
+Run the photo booth from the project root:
 
-The project requests strict ISO C++20 (`CXX_EXTENSIONS OFF`) and enables common compiler warnings for both the core library and all student-facing applications.
-
-## Configuration
-
-All applications accept one optional positional argument: the TOML configuration filename. When omitted, `config.toml` in the current working directory is used.
-
-The supplied configuration is:
-
-```toml
-[camera]
-device = 0
-width = 1280
-height = 720
-fps = 30.0
-fourcc = ""
-
-[preview]
-mirror = false
-rotation = 0
-window_name = "Photo Booth"
-
-[capture]
-output_filename = "captured_image.png"
-warmup_frames = 10
-
-[processing]
-channel_swap_enabled = true
-```
-
-Missing values use defaults declared in the typed C++ configuration structures. Unknown sections, unknown options, incorrect value types, and invalid values are reported as errors.
-
-## Run the minimal live preview
-
-```sh
-./build/bin/live_preview
-```
-
-or:
-
-```sh
-./build/bin/live_preview webcam.toml
-```
-
-Press `Esc` or `q` to quit.
-
-## Run the photo booth
-
-```sh
+```bash
 ./build/bin/photo_booth
 ```
 
-or:
+To use a different TOML configuration file:
 
-```sh
+```bash
 ./build/bin/photo_booth webcam.toml
 ```
 
-Controls:
+On Windows, run the corresponding executable from `build/bin`, such as `photo_booth.exe`.
 
-- `i` — toggle image inversion on/off
-- `Esc` or `q` — quit
+## Capture
 
-The configured channel-swap baseline operation is applied before the optional inversion operation. Future operations can be added to `processFrame()` in the order desired for the processing pipeline.
+Press `SPACE` to save the currently processed frame using the output filename specified in `config.toml`. The saved image contains the processing effects, not the text drawn over the preview window.
 
-## Adding an Operation
+## Design approach
 
-The starter project intentionally uses a simple, explicit extension pattern. Processing algorithms are ordinary free functions, while `processFrame()` determines which operations run and in what order. Avoid introducing a class hierarchy or general-purpose processing framework until the growing application provides a clear reason to do so.
+The project continues to use ordinary image-processing functions instead of introducing a new processing framework.
 
-### Adding an optional runtime operation
+To add an operation:
 
-For an operation that the user turns on and off while the application is running:
+1. Declare the function in `include/photo_booth/ImageProcessing.hpp`.
+2. Implement it in `src/ImageProcessing.cpp`.
+3. Add an enable flag to `ProcessingState`.
+4. Call the operation from `processFrame()`.
+5. Add a keyboard case in `handleKey()`.
+6. Update the preview text and README controls.
 
-1. Declare the processing function in `include/photo_booth/ImageProcessing.hpp`.
-2. Implement the function in `src/ImageProcessing.cpp`.
-3. Add the operation's runtime state to `ProcessingState` in `apps/photo_booth.cpp`.
-4. Add a keyboard control in `handleKey()` to toggle or adjust that state.
-5. Add the operation to the optional-operations portion of `processFrame()` in the desired pipeline order.
-
-For example, a threshold operation might eventually add:
-
-```cpp
-bool threshold_enabled{false};
-```
-
-to `ProcessingState`, toggle it from `handleKey()`, and apply `thresholdImage()` from `processFrame()` when the state is enabled. Each optional operation should have independent state so that multiple operations can be active at the same time.
-
-### Adding a baseline configurable operation
-
-For an operation whose initial behavior is established by `config.toml` and applied automatically to every frame when enabled:
-
-1. Declare the processing function in `include/photo_booth/ImageProcessing.hpp`.
-2. Implement the function in `src/ImageProcessing.cpp`.
-3. Add the operation's enable flag and any parameters to the flat `ProcessingConfig` structure in `include/photo_booth/AppConfig.hpp`.
-4. Add matching values to the `[processing]` section of `config.toml`.
-5. Add those key names to the processing validation list in `src/AppConfig.cpp`, read the values with `readOptional()`, and add any necessary range/value checks to `validateValues()`.
-6. Add the operation to the baseline-operations portion of `processFrame()` in the desired pipeline order.
-
-For example, a future configurable quantization operation could use:
-
-```toml
-[processing]
-channel_swap_enabled = true
-quantization_enabled = false
-quantization_levels = 8
-```
-
-with a correspondingly simple configuration structure:
-
-```cpp
-struct ProcessingConfig {
-  bool channel_swap_enabled{false};
-  bool quantization_enabled{false};
-  int quantization_levels{8};
-};
-```
-
-The flat `[processing]` section is intentional. It keeps the mechanics of adding a configuration value visible and repetitive, so that most student effort remains focused on the image-processing algorithm itself. If the configuration becomes unwieldy later in the semester, that is an appropriate opportunity to consider refactoring.
-
-## Single-image camera utility
-
-```sh
-./build/bin/capture_single_image
-```
-
-or:
-
-```sh
-./build/bin/capture_single_image laboratory_camera.toml
-```
-
-The output filename and camera warmup count are controlled by the `[capture]` section.
-
-All three applications support `--help`.
-
-## ImageCapture component
-
-`ImageCapture` contains no photo-booth user-interface or image-processing behavior. It acquires camera frames and exposes the most recent frame as a `cv::Mat`.
-
-```cpp
-#include "photo_booth/ImageCapture.hpp"
-
-#include <iostream>
-
-int main() {
-  photo_booth::ImageCapture camera;
-
-  if (!camera.open()) {
-    std::cerr << camera.errorMessage() << '\n';
-    return 1;
-  }
-
-  if (!camera.read()) {
-    std::cerr << camera.errorMessage() << '\n';
-    return 1;
-  }
-
-  const cv::Mat& image = camera.image();
-
-  // image is CV_8UC3 using BGR channel order.
-}
-```
 
 Camera properties such as image dimensions, frame rate, and FOURCC are requests rather than guarantees. The hardware, operating system, driver, and OpenCV backend may ignore a requested property or select a nearby supported mode. Use `cameraInfo()` after opening the device to inspect the values reported by the backend.
 
