@@ -3,6 +3,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <string>
+#include <algorithm>
 
 namespace photo_booth {
 namespace {
