@@ -366,6 +366,38 @@ bool handleKey(
             << " degrees)\n";
         break;
 
+        case 's':
+case 'S':
+    state.spatial_preset =
+        (state.spatial_preset + 1) % 6;
+    if (state.spatial_preset == 5) {
+        state.spatial_preset = -1;
+    }
+    break;
+
+    case 'f':
+    case 'F':
+        state.frequency_type =
+            (state.frequency_type + 1) % 4;
+        if (state.frequency_type == 3) {
+            state.frequency_type = -1;
+        }
+        break;
+
+    case 'h':
+    case 'H':
+        state.high_pass = !state.high_pass;
+        break;
+
+    case 't':
+    case 'T':
+        state.transformation_type =
+            (state.transformation_type + 1) % 4;
+        if (state.transformation_type == 3) {
+            state.transformation_type = -1;
+        }
+    break;
+
     case ',':
         state.rotation_angle -= 5.0;
 
