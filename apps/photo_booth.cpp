@@ -23,9 +23,12 @@ struct ProcessingState {
     // Week 10 additions.
     bool blur_enabled{false};
     bool edge_detection_enabled{false};
-
     int quantization_levels{8};
     double rotation_angle{0.0};
+    int spatial_preset{-1};
+    int frequency_type{-1};
+    int transformation_type{-1};
+    bool high_pass{false};
 };
 
 cv::Mat processFrame(
@@ -80,7 +83,30 @@ cv::Mat processFrame(
                 processed_frame,
                 state.rotation_angle);
     }
+    if (state.spatial_preset >= 0) {
+    processed_frame = photo_booth::spatialFilter(
+        processed_frame,
+        state.spatial_preset);
+}
 
+if (state.frequency_type >= 0) {
+    processed_frame = photo_booth::frequencyFilter(
+        processed_frame,
+        state.frequency_type,
+        state.high_pass,
+        30.0,
+        2);
+    }
+
+    if (state.transformation_type == 0) {
+        processed_frame = photo_booth::affineTransform(processed_frame);
+    }
+    else if (state.transformation_type == 1) {
+        processed_frame = photo_booth::perspectiveTransform(processed_frame);
+    }
+    else if (state.transformation_type == 2) {
+        processed_frame = photo_booth::logPolarTransform(processed_frame);
+    }
     return processed_frame;
 }
 
