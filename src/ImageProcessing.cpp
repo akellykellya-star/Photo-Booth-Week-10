@@ -351,5 +351,227 @@ cv::Mat edgeDetect(
 
     return output;
 }
+cv::Mat spatialFilter(const cv::Mat& image, int preset)
+{
+    validateImage(image, "spatialFilter()");
 
+    cv::Mat output;
+    cv::Mat kernel;
+
+    switch (preset) {
+    case 0:
+        cv::blur(image, output, cv::Size(3, 3));
+        break;
+    case 1:
+        cv::GaussianBlur(image, output, cv::Size(5, 5), 1.0);
+        break;
+    case 2:
+        kernel = (cv::Mat_<float>(3, 3) <<
+            0, -1, 0,
+            -1, 5, -1,
+            0, -1, 0);
+        cv::filter2D(image, output, -1, kernel);
+        break;
+    case 3:
+        kernel = (cv::Mat_<float>(3, 3) <<
+            -1, -1, -1,
+            -1, 8, -1,
+            -1, -1, -1);
+        cv::filter2D(image, output, -1, kernel);
+        break;
+    case 4:
+        kernel = (cv::Mat_<float>(3, 3) <<
+            -2, -1, 0,
+            -1, 1, 1,
+            0, 1, 2);
+        cv::filter2D(image, output, -1, kernel);
+        break;
+    default:
+        throw std::invalid_argument("Invalid spatial filter preset");
+    }
+
+    return output;
+}
+
+cv::Mat customSpatialFilter(
+    const cv::Mat& image,
+    const std::vector<double>& kernel,
+    int kernel_size)
+{
+    validateImage(image, "customSpatialFilter()");
+
+    if (kernel_size <= 0 ||
+        kernel_size % 2 == 0 ||
+        kernel.size() != static_cast<std::size_t>(kernel_size * kernel_size)) {
+        throw std::invalid_argument("Kernel must have an odd size and matching coefficients");
+    }
+
+    cv::Mat kernel_matrix(kernel_size, kernel_size, CV_32F);
+
+    for (int row = 0; row < kernel_size; ++row) {
+        for (int column = 0; column < kernel_size; ++column) {
+            kernel_matrix.at<float>(row, column) =
+                static_cast<float>(kernel[row * kernel_size + column]);
+        }
+    }
+
+    cv::Mat output;
+    cv::filter2D(image, output, -1, kernel_matrix);
+    return output;
+}
+
+cv::Mat frequencyFilter(
+    const cv::Mat& image,
+    int filter_type,
+    bool high_pass,
+    double cutoff,
+    int order)
+{
+    validateImage(image, "frequencyFilter()");
+
+    if (filter_type < 0 || filter_type > 2 ||
+        cutoff <= 0.0 || order <= 0) {
+        throw std::invalid_argument("Invalid frequency filter parameters");
+    }
+
+    cv::Mat padded;
+    cv::Mat planes[] = {
+        cv::Mat_<float>(image),
+        cv::Mat::zeros(image.size(), CV_32F)
+    };
+
+    cv::Mat gray;
+    cv::cvtColor(image, gray, cv::COLOR_BGR2GRAY);
+    gray.convertTo(planes[0], CV_32F);
+
+    cv::Mat complex_image;
+    cv::merge(planes, 2, complex_image);
+    cv::dft(complex_image, complex_image);
+
+    cv::Mat mask(image.size(), CV_32F);
+
+    const double center_x = image.cols / 2.0;
+    const double center_y = image.rows / 2.0;
+
+    for (int row = 0; row < image.rows; ++row) {
+        for (int column = 0; column < image.cols; ++column) {
+            const double dx = std::min(
+                column,
+                image.cols - column);
+            const double dy = std::min(
+                row,
+                image.rows - row);
+            const double distance = std::sqrt(dx * dx + dy * dy);
+
+            double value = 0.0;
+
+            if (filter_type == 0) {
+                value = distance <= cutoff ? 1.0 : 0.0;
+            }
+            else if (filter_type == 1) {
+                value = 1.0 / (
+                    1.0 + std::pow(distance / cutoff, 2 * order));
+            }
+            else {
+                value = std::exp(
+                    -(distance * distance) /
+                    (2.0 * cutoff * cutoff));
+            }
+
+            if (high_pass) {
+                value = 1.0 - value;
+            }
+
+            mask.at<float>(row, column) =
+                static_cast<float>(value);
+        }
+    }
+
+    cv::Mat frequency_planes[2];
+    cv::split(complex_image, frequency_planes);
+    frequency_planes[0] = frequency_planes[0].mul(mask);
+    frequency_planes[1] = frequency_planes[1].mul(mask);
+    cv::merge(frequency_planes, 2, complex_image);
+
+    cv::Mat inverse;
+    cv::idft(
+        complex_image,
+        inverse,
+        cv::DFT_REAL_OUTPUT | cv::DFT_SCALE);
+
+    cv::normalize(inverse, inverse, 0, 255, cv::NORM_MINMAX);
+    inverse.convertTo(inverse, CV_8U);
+
+    cv::Mat output;
+    cv::cvtColor(inverse, output, cv::COLOR_GRAY2BGR);
+    return output;
+}
+
+cv::Mat affineTransform(const cv::Mat& image)
+{
+    validateImage(image, "affineTransform()");
+
+    cv::Point2f source[] = {
+        cv::Point2f(0, 0),
+        cv::Point2f(static_cast<float>(image.cols - 1), 0),
+        cv::Point2f(0, static_cast<float>(image.rows - 1))
+    };
+
+    cv::Point2f destination[] = {
+        cv::Point2f(image.cols * 0.1f, image.rows * 0.1f),
+        cv::Point2f(image.cols * 0.9f, image.rows * 0.05f),
+        cv::Point2f(image.cols * 0.2f, image.rows * 0.9f)
+    };
+
+    cv::Mat matrix = cv::getAffineTransform(source, destination);
+    cv::Mat output;
+    cv::warpAffine(image, output, matrix, image.size());
+    return output;
+}
+
+cv::Mat perspectiveTransform(const cv::Mat& image)
+{
+    validateImage(image, "perspectiveTransform()");
+
+    cv::Point2f source[] = {
+        cv::Point2f(0, 0),
+        cv::Point2f(static_cast<float>(image.cols - 1), 0),
+        cv::Point2f(static_cast<float>(image.cols - 1), static_cast<float>(image.rows - 1)),
+        cv::Point2f(0, static_cast<float>(image.rows - 1))
+    };
+
+    cv::Point2f destination[] = {
+        cv::Point2f(image.cols * 0.1f, image.rows * 0.1f),
+        cv::Point2f(image.cols * 0.9f, 0),
+        cv::Point2f(image.cols * 0.95f, image.rows * 0.9f),
+        cv::Point2f(image.cols * 0.05f, static_cast<float>(image.rows - 1))
+    };
+
+    cv::Mat matrix = cv::getPerspectiveTransform(source, destination);
+    cv::Mat output;
+    cv::warpPerspective(image, output, matrix, image.size());
+    return output;
+}
+
+cv::Mat logPolarTransform(const cv::Mat& image)
+{
+    validateImage(image, "logPolarTransform()");
+
+    cv::Mat output;
+    const cv::Point2f center(
+        image.cols / 2.0f,
+        image.rows / 2.0f);
+
+    const double scale = image.cols /
+        std::log(std::max(2.0, static_cast<double>(image.cols) / 2.0));
+
+    cv::logPolar(
+        image,
+        output,
+        center,
+        scale,
+        cv::INTER_LINEAR | cv::WARP_FILL_OUTLIERS);
+
+    return output;
+}
 } // namespace photo_booth
