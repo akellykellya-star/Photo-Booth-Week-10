@@ -320,6 +320,25 @@ cv::Mat blurImage(
     return output;
 }
 
+cv::Mat grayscaleImage(const cv::Mat& image)
+{
+    validateImage(image, "grayscaleImage()");
+
+    cv::Mat output;
+
+    cv::cvtColor(
+        image,
+        output,
+        cv::COLOR_BGR2GRAY);
+
+    cv::cvtColor(
+        output,
+        output,
+        cv::COLOR_GRAY2BGR);
+
+    return output;
+}
+
 cv::Mat edgeDetect(
     const cv::Mat& image)
 {
