@@ -431,19 +431,35 @@ case 'S':
             break;
         }
 
-        if (!cv::imwrite(
-                capture_config.output_filename,
-                processed_frame)) {
-            std::cerr
-                << "Unable to save image to "
-                << capture_config.output_filename
-                << '\n';
-        }
-        else {
-            std::cout
-                << "Captured image: "
-                << capture_config.output_filename
-                << '\n';
+        {
+            const std::filesystem::path base_path{
+                capture_config.output_filename
+            };
+
+            std::filesystem::path output_path = base_path;
+            int capture_number = 1;
+
+            while (std::filesystem::exists(output_path)) {
+                output_path = base_path.parent_path() /
+                    (base_path.stem().string() + "_" +
+                     std::to_string(capture_number++) +
+                     base_path.extension().string());
+            }
+
+            if (!cv::imwrite(
+                    output_path.string(),
+                    processed_frame)) {
+                std::cerr
+                    << "Unable to save image to "
+                    << output_path.string()
+                    << '\n';
+            }
+            else {
+                std::cout
+                    << "Captured image: "
+                    << output_path.string()
+                    << '\n';
+            }
         }
 
         break;
