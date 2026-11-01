@@ -305,16 +305,25 @@ cv::Mat rotateImage(
 }
 
 cv::Mat blurImage(
-    const cv::Mat& image)
+    const cv::Mat& image,
+    int kernel_size)
 {
     validateImage(image, "blurImage()");
+
+    if (kernel_size < 3 ||
+        kernel_size > 15 ||
+        kernel_size % 2 == 0) {
+        throw std::invalid_argument(
+            "Blur kernel size must be odd"
+            "and between 3 and 15");
+    }
 
     cv::Mat output;
 
     cv::GaussianBlur(
         image,
         output,
-        cv::Size(5, 5),
+        cv::Size(kernel_size, kernel_size),
         0.0);
 
     return output;
