@@ -24,6 +24,7 @@ struct ProcessingState {
     bool blur_enabled{false};
     bool edge_detection_enabled{false};
     int quantization_levels{8};
+    int blur_kernel_size{5};
     double rotation_angle{0.0};
     int spatial_preset{-1};
     int frequency_type{-1};
@@ -59,9 +60,10 @@ cv::Mat processFrame(
     }
 
     if (state.blur_enabled) {
-        processed_frame =
-            photo_booth::blurImage(
-                processed_frame);
+    processed_frame =
+        photo_booth::blurImage(
+            processed_frame,
+            state.blur_kernel_size);
     }
 
     if (state.edge_detection_enabled) {
@@ -210,15 +212,21 @@ void showPreviewFrame(
         1);
 
     std::string new_effects =
-        "B: Blur " +
-        std::string(
-            state.blur_enabled ? "ON" : "OFF");
+    "B: Blur " +
+    std::string(
+        state.blur_enabled ? "ON" : "OFF");
 
     new_effects +=
-        "   E: Edge Detection " +
-        std::string(
-            state.edge_detection_enabled ? "ON" : "OFF");
+    " (" +
+    std::to_string(state.blur_kernel_size) +
+    "x" +
+    std::to_string(state.blur_kernel_size) +
+    ")";
 
+    new_effects +=
+    "   E: Edge Detection " +
+    std::string(
+        state.edge_detection_enabled ? "ON" : "OFF");
     cv::putText(
         preview_frame,
         new_effects,
@@ -239,7 +247,7 @@ void showPreviewFrame(
 
     cv::putText(
         preview_frame,
-        "B Blur  E Edges  [ ] Levels  , . Angle",
+        "B Blur  E Edges  -/= Blur Strength  [ ] Levels , . Angle",
         cv::Point(10, 148),
         cv::FONT_HERSHEY_SIMPLEX,
         0.42,
@@ -316,7 +324,32 @@ bool handleKey(
             << (state.blur_enabled ? "ON" : "OFF")
             << '\n';
         break;
+    case '-':
+    if (state.blur_kernel_size > 3) {
+        state.blur_kernel_size -= 2;
+    }
 
+    std::cout
+        << "Blur strength: "
+        << state.blur_kernel_size
+        << "x"
+        << state.blur_kernel_size
+        << '\n';
+    break;
+
+    case '=':
+        if (state.blur_kernel_size < 15) {
+            state.blur_kernel_size += 2;
+    }
+
+    std::cout
+        << "Blur strength: "
+        << state.blur_kernel_size
+        << "x"
+        << state.blur_kernel_size
+        << '\n';
+    break;
+        
     case 'e':
     case 'E':
         state.edge_detection_enabled =
