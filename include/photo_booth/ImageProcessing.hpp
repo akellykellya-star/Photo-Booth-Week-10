@@ -17,7 +17,9 @@ cv::Mat dynamicContrast(
 
 cv::Mat rotateImage(const cv::Mat& image, double angle);
 cv::Mat grayscaleImage(const cv::Mat& image);
-cv::Mat blurImage(const cv::Mat& image);
+cv::Mat blurImage(
+    const cv::Mat& image,
+    int kernel_size);
 cv::Mat edgeDetect(const cv::Mat& image);
 
 cv::Mat spatialFilter(const cv::Mat& image, int preset);
