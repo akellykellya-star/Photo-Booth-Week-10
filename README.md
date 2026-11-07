@@ -12,17 +12,19 @@ The project builds three executables:
 - `photo_booth` — runs the interactive image-processing pipeline.
 - `capture_single_image` — captures a single image for testing.
 
-## Image-processing capabilities
+The photo booth implements ten substantive image-processing capabilities:
 
-The photo booth includes:
+1. **Channel swapping** — swaps the red and blue channels.
+2. **Dynamic contrast enhancement** — stretches each channel using percentile-based low/high values.
+3. **Grayscale conversion** — converts the image to grayscale while preserving the project's three-channel BGR representation.
+4. **Gaussian blur** — applies a configurable odd-sized Gaussian spatial filter.
+5. **Canny edge detection** — detects image edges and converts the result back to three-channel BGR.
+6. **Image inversion** — computes the photographic negative of the image.
+7. **Image quantization** — reduces each channel to a selectable number of intensity levels.
+8. **Arbitrary-angle rotation** — rotates the image using inverse coordinate mapping.
+9. **Harris and FAST corner detection** — detects image corners using either the Harris corner response or the FAST feature detector and displays detected locations as a red overlay.
+10. **Minimum-distance and cosine classification** — represents images with normalized color histograms and compares the live image against reference-image classes using either Euclidean distance or cosine similarity.
 
-- **Channel swapping:** swaps red and blue channel values. Configured through `config.toml`.
-- **Dynamic contrast:** adjusts the image's intensity range using low and high percentiles.
-- **Image inversion:** creates a photographic negative. This is an extra visual effect and is not counted as a substantive capability.
-- **Image quantization:** reduces the number of intensity levels in the image's color channels.
-- **Image rotation:** rotates the image by a selectable angle.
-- **Gaussian blur:** smooths image details using a 5 × 5 Gaussian kernel.
-- **Canny edge detection:** identifies image edges using grayscale conversion and Canny thresholds.
 
 The two additional Week 10 processing functions are Gaussian blur and Canny edge detection.
 
