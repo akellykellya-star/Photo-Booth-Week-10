@@ -715,5 +715,224 @@ cv::Mat logPolarTransform(const cv::Mat& image)
 
     return output;
 }
+cv::Mat detectHarrisCorners(
+    const cv::Mat& image,
+    int blockSize,
+    int apertureSize,
+    double k,
+    double thresholdRatio)
+{
+    validateImage(
+        image,
+        "detectHarrisCorners()");
 
+    cv::Mat gray;
+    cv::cvtColor(
+        image,
+        gray,
+        cv::COLOR_BGR2GRAY);
+
+    cv::Mat grayFloat;
+    gray.convertTo(
+        grayFloat,
+        CV_32F);
+
+    cv::Mat response;
+    cv::cornerHarris(
+        grayFloat,
+        response,
+        blockSize,
+        apertureSize,
+        k);
+
+    cv::Mat normalized;
+    cv::normalize(
+        response,
+        normalized,
+        0,
+        255,
+        cv::NORM_MINMAX);
+
+    cv::Mat cornerMask;
+    cv::threshold(
+        normalized,
+        cornerMask,
+        255.0 * thresholdRatio,
+        255,
+        cv::THRESH_BINARY);
+
+    cornerMask.convertTo(
+        cornerMask,
+        CV_8UC1);
+
+    return cornerMask;
+}
+
+cv::Mat detectFASTCorners(
+    const cv::Mat& image,
+    int threshold,
+    bool nonmaxSuppression)
+{
+    validateImage(
+        image,
+        "detectFASTCorners()");
+
+    cv::Mat gray;
+    cv::cvtColor(
+        image,
+        gray,
+        cv::COLOR_BGR2GRAY);
+
+    cv::Ptr<cv::FastFeatureDetector> detector =
+        cv::FastFeatureDetector::create(
+            threshold,
+            nonmaxSuppression);
+
+    std::vector<cv::KeyPoint> keypoints;
+
+    detector->detect(
+        gray,
+        keypoints);
+
+    cv::Mat cornerMask =
+        cv::Mat::zeros(
+            image.size(),
+            CV_8UC1);
+
+    for (const cv::KeyPoint& point : keypoints) {
+        cv::circle(
+            cornerMask,
+            point.pt,
+            2,
+            cv::Scalar(255),
+            -1);
+    }
+
+    return cornerMask;
+}
+
+cv::Mat drawCornerOverlay(
+    const cv::Mat& image,
+    const cv::Mat& cornerMask)
+{
+    validateImage(
+        image,
+        "drawCornerOverlay()");
+
+    if (cornerMask.empty() ||
+        cornerMask.size() != image.size()) {
+        throw std::invalid_argument(
+            "drawCornerOverlay(): invalid corner mask");
+    }
+
+    cv::Mat output =
+        image.clone();
+
+    for (int row = 0; row < cornerMask.rows; ++row) {
+        for (int column = 0; column < cornerMask.cols; ++column) {
+            if (cornerMask.at<unsigned char>(row, column) > 0) {
+                cv::circle(
+                    output,
+                    cv::Point(column, row),
+                    3,
+                    cv::Scalar(0, 0, 255),
+                    -1);
+            }
+        }
+    }
+
+    return output;
+}
+
+std::vector<float> extractFeatureVector(
+    const cv::Mat& image)
+{
+    validateImage(
+        image,
+        "extractFeatureVector()");
+
+    const int bins = 16;
+
+    std::vector<float> features(
+        bins * 3,
+        0.0f);
+
+    for (int row = 0; row < image.rows; ++row) {
+        for (int column = 0; column < image.cols; ++column) {
+            const cv::Vec3b& pixel =
+                image.at<cv::Vec3b>(row, column);
+
+            for (int channel = 0; channel < 3; ++channel) {
+                const int bin =
+                    pixel[channel] / 16;
+
+                features[channel * bins + bin] += 1.0f;
+            }
+        }
+    }
+
+    const float total_pixels =
+        static_cast<float>(
+            image.rows * image.cols);
+
+    for (float& value : features) {
+        value /= total_pixels;
+    }
+
+    return features;
+}
+
+double minimumDistance(
+    const std::vector<float>& a,
+    const std::vector<float>& b)
+{
+    if (a.empty() || a.size() != b.size()) {
+        throw std::invalid_argument(
+            "minimumDistance(): feature vectors must have equal nonzero sizes");
+    }
+
+    double sum = 0.0;
+
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        const double difference =
+            static_cast<double>(a[i] - b[i]);
+
+        sum += difference * difference;
+    }
+
+    return std::sqrt(sum);
+}
+
+double cosineSimilarity(
+    const std::vector<float>& a,
+    const std::vector<float>& b)
+{
+    if (a.empty() || a.size() != b.size()) {
+        throw std::invalid_argument(
+            "cosineSimilarity(): feature vectors must have equal nonzero sizes");
+    }
+
+    double dotProduct = 0.0;
+    double magnitudeA = 0.0;
+    double magnitudeB = 0.0;
+
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        dotProduct +=
+            static_cast<double>(a[i]) * b[i];
+
+        magnitudeA +=
+            static_cast<double>(a[i]) * a[i];
+
+        magnitudeB +=
+            static_cast<double>(b[i]) * b[i];
+    }
+
+    if (magnitudeA == 0.0 || magnitudeB == 0.0) {
+        return 0.0;
+    }
+
+    return dotProduct /
+        (std::sqrt(magnitudeA) *
+         std::sqrt(magnitudeB));
+}
 } // namespace photo_booth
