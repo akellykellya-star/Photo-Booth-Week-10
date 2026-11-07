@@ -355,3 +355,4 @@ std::ostream& operator<<(std::ostream& output, const ImageCapture& camera) {
 
 }  // namespace photo_booth
 
+
