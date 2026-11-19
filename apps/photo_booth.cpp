@@ -1,3 +1,4 @@
+
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -19,8 +20,16 @@ struct ProcessingState {
     bool quantization_enabled{false};
     bool rotation_enabled{false};
 
+    // Week 10 additions.
+    bool blur_enabled{false};
+    bool edge_detection_enabled{false};
     int quantization_levels{8};
+    int blur_kernel_size{5};
     double rotation_angle{0.0};
+    int spatial_preset{-1};
+    int frequency_type{-1};
+    int transformation_type{-1};
+    bool high_pass{false};
 };
 
 cv::Mat processFrame(
@@ -28,28 +37,14 @@ cv::Mat processFrame(
     const photo_booth::ProcessingConfig& config,
     const ProcessingState& state)
 {
-    cv::Mat processed_frame =
-        frame.clone();
+    cv::Mat processed_frame = frame.clone();
 
-    /*
-     * Baseline processing operation.
-     *
-     * This is controlled through config.toml
-     * rather than the keyboard.
-     */
     if (config.channel_swap_enabled) {
         processed_frame =
             photo_booth::swapRedBlueChannels(
                 processed_frame);
     }
 
-    /*
-     * Dynamic contrast enhancement.
-     *
-     * This operation is now optional so that
-     * the user can compare the original image
-     * with the dynamically enhanced image.
-     */
     if (state.contrast_enabled) {
         processed_frame =
             photo_booth::dynamicContrast(
@@ -58,18 +53,25 @@ cv::Mat processFrame(
                 99);
     }
 
-    /*
-     * Image inversion.
-     */
     if (state.inversion_enabled) {
         processed_frame =
             photo_booth::invertImage(
                 processed_frame);
     }
 
-    /*
-     * Uniform image quantization.
-     */
+    if (state.blur_enabled) {
+    processed_frame =
+        photo_booth::blurImage(
+            processed_frame,
+            state.blur_kernel_size);
+    }
+
+    if (state.edge_detection_enabled) {
+        processed_frame =
+            photo_booth::edgeDetect(
+                processed_frame);
+    }
+
     if (state.quantization_enabled) {
         processed_frame =
             photo_booth::quantizeImage(
@@ -77,16 +79,36 @@ cv::Mat processFrame(
                 state.quantization_levels);
     }
 
-    /*
-     * Geometric rotation.
-     */
     if (state.rotation_enabled) {
         processed_frame =
             photo_booth::rotateImage(
                 processed_frame,
                 state.rotation_angle);
     }
+    if (state.spatial_preset >= 0) {
+    processed_frame = photo_booth::spatialFilter(
+        processed_frame,
+        state.spatial_preset);
+}
 
+if (state.frequency_type >= 0) {
+    processed_frame = photo_booth::frequencyFilter(
+        processed_frame,
+        state.frequency_type,
+        state.high_pass,
+        30.0,
+        2);
+    }
+
+    if (state.transformation_type == 0) {
+        processed_frame = photo_booth::affineTransform(processed_frame);
+    }
+    else if (state.transformation_type == 1) {
+        processed_frame = photo_booth::perspectiveTransform(processed_frame);
+    }
+    else if (state.transformation_type == 2) {
+        processed_frame = photo_booth::logPolarTransform(processed_frame);
+    }
     return processed_frame;
 }
 
@@ -95,15 +117,9 @@ void showPreviewFrame(
     const photo_booth::PreviewConfig& config,
     const ProcessingState& state)
 {
-    cv::Mat preview_frame =
-        frame.clone();
+    cv::Mat preview_frame = frame.clone();
 
-    /*
-     * Apply display-oriented rotation.
-     *
-     * This is separate from the processing
-     * rotation above.
-     */
+    // Preview orientation is separate from processing rotation.
     switch (config.rotation) {
     case 0:
         break;
@@ -137,9 +153,6 @@ void showPreviewFrame(
             1);
     }
 
-    /*
-     * Main title.
-     */
     cv::putText(
         preview_frame,
         "PHOTO BOOTH - WEEK 10",
@@ -149,42 +162,30 @@ void showPreviewFrame(
         cv::Scalar(255, 255, 255),
         1);
 
-    /*
-     * Current processing state.
-     */
     std::string status =
         "C: Contrast " +
         std::string(
-            state.contrast_enabled
-                ? "ON"
-                : "OFF");
+            state.contrast_enabled ? "ON" : "OFF");
 
     status +=
         "   I: Invert " +
         std::string(
-            state.inversion_enabled
-                ? "ON"
-                : "OFF");
+            state.inversion_enabled ? "ON" : "OFF");
 
     status +=
         "   N: Quantize " +
         std::string(
-            state.quantization_enabled
-                ? "ON"
-                : "OFF");
+            state.quantization_enabled ? "ON" : "OFF");
 
     cv::putText(
         preview_frame,
         status,
         cv::Point(10, 50),
         cv::FONT_HERSHEY_SIMPLEX,
-        0.50,
+        0.42,
         cv::Scalar(255, 255, 255),
         1);
 
-    /*
-     * Quantization and rotation parameters.
-     */
     std::string parameters =
         "Levels: " +
         std::to_string(
@@ -193,15 +194,12 @@ void showPreviewFrame(
     parameters +=
         "   R: Rotation " +
         std::string(
-            state.rotation_enabled
-                ? "ON"
-                : "OFF");
+            state.rotation_enabled ? "ON" : "OFF");
 
     parameters +=
         " (" +
         std::to_string(
-            static_cast<int>(
-                state.rotation_angle)) +
+            static_cast<int>(state.rotation_angle)) +
         " deg)";
 
     cv::putText(
@@ -209,28 +207,59 @@ void showPreviewFrame(
         parameters,
         cv::Point(10, 75),
         cv::FONT_HERSHEY_SIMPLEX,
-        0.50,
+        0.42,
         cv::Scalar(255, 255, 255),
         1);
 
-    /*
-     * Keyboard controls.
-     */
+    std::string new_effects =
+    "B: Blur " +
+    std::string(
+        state.blur_enabled ? "ON" : "OFF");
+
+    new_effects +=
+    " (" +
+    std::to_string(state.blur_kernel_size) +
+    "x" +
+    std::to_string(state.blur_kernel_size) +
+    ")";
+
+    new_effects +=
+    "   E: Edge Detection " +
+    std::string(
+        state.edge_detection_enabled ? "ON" : "OFF");
+    cv::putText(
+        preview_frame,
+        new_effects,
+        cv::Point(10, 100),
+        cv::FONT_HERSHEY_SIMPLEX,
+        0.42,
+        cv::Scalar(255, 255, 255),
+        1);
+
     cv::putText(
         preview_frame,
         "C Contrast  I Invert  N Quantize  R Rotate",
-        cv::Point(10, 105),
+        cv::Point(10, 125),
         cv::FONT_HERSHEY_SIMPLEX,
-        0.45,
+        0.42,
         cv::Scalar(255, 255, 255),
         1);
 
     cv::putText(
         preview_frame,
-        "[ ] Levels   , . Angle   SPACE Capture   Q Quit",
-        cv::Point(10, 128),
+        "B Blur  E Edges  -/= Blur Strength  [ ] Levels , . Angle",
+        cv::Point(10, 148),
         cv::FONT_HERSHEY_SIMPLEX,
-        0.45,
+        0.42,
+        cv::Scalar(255, 255, 255),
+        1);
+
+    cv::putText(
+        preview_frame,
+        "SPACE Capture   Q Quit",
+        cv::Point(10, 171),
+        cv::FONT_HERSHEY_SIMPLEX,
+        0.42,
         cv::Scalar(255, 255, 255),
         1);
 
@@ -246,18 +275,11 @@ bool handleKey(
     const photo_booth::CaptureConfig& capture_config)
 {
     switch (key) {
-
-    /*
-     * Exit.
-     */
     case 27:
     case 'q':
     case 'Q':
         return false;
 
-    /*
-     * Dynamic contrast.
-     */
     case 'c':
     case 'C':
         state.contrast_enabled =
@@ -265,16 +287,10 @@ bool handleKey(
 
         std::cout
             << "Dynamic contrast: "
-            << (state.contrast_enabled
-                    ? "ON"
-                    : "OFF")
+            << (state.contrast_enabled ? "ON" : "OFF")
             << '\n';
-
         break;
 
-    /*
-     * Inversion.
-     */
     case 'i':
     case 'I':
         state.inversion_enabled =
@@ -282,16 +298,10 @@ bool handleKey(
 
         std::cout
             << "Image inversion: "
-            << (state.inversion_enabled
-                    ? "ON"
-                    : "OFF")
+            << (state.inversion_enabled ? "ON" : "OFF")
             << '\n';
-
         break;
 
-    /*
-     * Quantization.
-     */
     case 'n':
     case 'N':
         state.quantization_enabled =
@@ -299,19 +309,58 @@ bool handleKey(
 
         std::cout
             << "Quantization: "
-            << (state.quantization_enabled
-                    ? "ON"
-                    : "OFF")
-            << " ("
-            << state.quantization_levels
-            << " levels)"
-            << '\n';
-
+            << (state.quantization_enabled ? "ON" : "OFF")
+            << " (" << state.quantization_levels
+            << " levels)\n";
         break;
 
-    /*
-     * Increase quantization levels.
-     */
+    case 'b':
+    case 'B':
+        state.blur_enabled =
+            !state.blur_enabled;
+
+        std::cout
+            << "Gaussian blur: "
+            << (state.blur_enabled ? "ON" : "OFF")
+            << '\n';
+        break;
+    case '-':
+    if (state.blur_kernel_size > 3) {
+        state.blur_kernel_size -= 2;
+    }
+
+    std::cout
+        << "Blur strength: "
+        << state.blur_kernel_size
+        << "x"
+        << state.blur_kernel_size
+        << '\n';
+    break;
+
+    case '=':
+        if (state.blur_kernel_size < 15) {
+            state.blur_kernel_size += 2;
+    }
+
+    std::cout
+        << "Blur strength: "
+        << state.blur_kernel_size
+        << "x"
+        << state.blur_kernel_size
+        << '\n';
+    break;
+        
+    case 'e':
+    case 'E':
+        state.edge_detection_enabled =
+            !state.edge_detection_enabled;
+
+        std::cout
+            << "Edge detection: "
+            << (state.edge_detection_enabled ? "ON" : "OFF")
+            << '\n';
+        break;
+
     case ']':
         if (state.quantization_levels < 256) {
             state.quantization_levels *= 2;
@@ -325,12 +374,8 @@ bool handleKey(
             << "Quantization levels: "
             << state.quantization_levels
             << '\n';
-
         break;
 
-    /*
-     * Decrease quantization levels.
-     */
     case '[':
         if (state.quantization_levels > 2) {
             state.quantization_levels /= 2;
@@ -340,12 +385,8 @@ bool handleKey(
             << "Quantization levels: "
             << state.quantization_levels
             << '\n';
-
         break;
 
-    /*
-     * Rotation.
-     */
     case 'r':
     case 'R':
         state.rotation_enabled =
@@ -353,23 +394,43 @@ bool handleKey(
 
         std::cout
             << "Rotation: "
-            << (state.rotation_enabled
-                    ? "ON"
-                    : "OFF")
-            << " ("
-            << state.rotation_angle
-            << " degrees)"
-            << '\n';
-
+            << (state.rotation_enabled ? "ON" : "OFF")
+            << " (" << state.rotation_angle
+            << " degrees)\n";
         break;
 
-    /*
-     * Decrease rotation angle.
-     *
-     * ',' is used instead of '<' because
-     * ',' is easier to detect consistently
-     * through OpenCV's keyboard handling.
-     */
+        case 's':
+case 'S':
+    state.spatial_preset =
+        (state.spatial_preset + 1) % 6;
+    if (state.spatial_preset == 5) {
+        state.spatial_preset = -1;
+    }
+    break;
+
+    case 'f':
+    case 'F':
+        state.frequency_type =
+            (state.frequency_type + 1) % 4;
+        if (state.frequency_type == 3) {
+            state.frequency_type = -1;
+        }
+        break;
+
+    case 'h':
+    case 'H':
+        state.high_pass = !state.high_pass;
+        break;
+
+    case 't':
+    case 'T':
+        state.transformation_type =
+            (state.transformation_type + 1) % 4;
+        if (state.transformation_type == 3) {
+            state.transformation_type = -1;
+        }
+    break;
+
     case ',':
         state.rotation_angle -= 5.0;
 
@@ -380,14 +441,9 @@ bool handleKey(
         std::cout
             << "Rotation angle: "
             << state.rotation_angle
-            << " degrees"
-            << '\n';
-
+            << " degrees\n";
         break;
 
-    /*
-     * Increase rotation angle.
-     */
     case '.':
         state.rotation_angle += 5.0;
 
@@ -398,36 +454,45 @@ bool handleKey(
         std::cout
             << "Rotation angle: "
             << state.rotation_angle
-            << " degrees"
-            << '\n';
-
+            << " degrees\n";
         break;
 
-    /*
-     * Capture the currently processed frame.
-     */
     case ' ':
         if (processed_frame.empty()) {
             std::cerr
-                << "Unable to capture: "
-                << "processed frame is empty.\n";
+                << "Unable to capture: processed frame is empty.\n";
             break;
         }
 
-        if (!cv::imwrite(
-                capture_config.output_filename,
-                processed_frame)) {
+        {
+            const std::filesystem::path base_path{
+                capture_config.output_filename
+            };
 
-            std::cerr
-                << "Unable to save image to "
-                << capture_config.output_filename
-                << '\n';
-        }
-        else {
-            std::cout
-                << "Captured image: "
-                << capture_config.output_filename
-                << '\n';
+            std::filesystem::path output_path = base_path;
+            int capture_number = 1;
+
+            while (std::filesystem::exists(output_path)) {
+                output_path = base_path.parent_path() /
+                    (base_path.stem().string() + "_" +
+                     std::to_string(capture_number++) +
+                     base_path.extension().string());
+            }
+
+            if (!cv::imwrite(
+                    output_path.string(),
+                    processed_frame)) {
+                std::cerr
+                    << "Unable to save image to "
+                    << output_path.string()
+                    << '\n';
+            }
+            else {
+                std::cout
+                    << "Captured image: "
+                    << output_path.string()
+                    << '\n';
+            }
         }
 
         break;
@@ -446,7 +511,6 @@ int main(
     char* argv[])
 {
     try {
-
         std::filesystem::path config_path{
             "config.toml"};
 
@@ -465,7 +529,6 @@ int main(
 
             if (argument == "-h" ||
                 argument == "--help") {
-
                 std::cout
                     << "Usage: "
                     << argv[0]
@@ -506,7 +569,6 @@ int main(
         ProcessingState processing_state;
 
         while (true) {
-
             if (!camera.read()) {
                 std::cerr
                     << camera.errorMessage()
@@ -534,7 +596,6 @@ int main(
                     processing_state,
                     processed_frame,
                     config.capture)) {
-
                 break;
             }
         }
@@ -560,4 +621,3 @@ int main(
 
     return EXIT_SUCCESS;
 }
-
